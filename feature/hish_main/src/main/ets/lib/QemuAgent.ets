@@ -19,6 +19,7 @@ interface QGAArguments {
   path?: string
   arg?: string[]
   'capture-output'?: boolean
+  'input-data'?: string
   pid?: number
   signal?: number
 }
@@ -77,7 +78,7 @@ export interface QGAVcpuInfo {
 
 export interface QGAExecStatus {
   exited: boolean
-  'exit-code'?: number
+  exitcode?: number
   signal?: number
   'out-data'?: string
   'err-data'?: string
@@ -447,10 +448,11 @@ export class QemuAgent {
   /**
    * 在虚拟机内执行命令
    */
-  async exec(path: string, args?: string[]): Promise<number | null> {
+  async exec(path: string, args?: string[], inputData?: string): Promise<number | null> {
     const execArgs: QGAArguments = {
       path: path,
-      'capture-output': true
+      'capture-output': true,
+      'input-data': inputData
     }
     if (args) {
       execArgs.arg = args

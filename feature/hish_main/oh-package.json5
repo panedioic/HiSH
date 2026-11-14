@@ -6,6 +6,7 @@
   "author": "",
   "license": "",
   "dependencies": {
+    "hgs": "file:../../hgs",
     "libhish_main.so": "file:./src/main/cpp/types/libhish_main"
   }
 }

@@ -7,6 +7,7 @@ import fs from '@ohos.file.fs';
 import { deviceInfo } from '@kit.BasicServicesKit';
 import napi from 'libhish_main.so';
 import appOption, { CursorShape, UserFont } from '../model/appOption'
+import { X11SmokeSession } from '../service/X11SmokeSession';
 import { startVm } from '../lib/startVm';
 import { defaultEmulator, defaultRootfs, Emulator, RootFilesystem } from '../model/Emulator';
 import { util } from '@kit.ArkTS';
@@ -42,7 +43,10 @@ function getFreeVncPort(min: number, max: number): number | undefined {
 }
 
 export default class EntryAbility extends UIAbility {
+  private x11SmokeEnabled: boolean = false;
+  private x11Smoke: X11SmokeSession = new X11SmokeSession();
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    this.x11SmokeEnabled = want.parameters?.['hish.x11'] === '1';
     this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_DARK);
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
   }
@@ -87,6 +91,7 @@ export default class EntryAbility extends UIAbility {
 
       await this.prepareForSharedFolder(appContext)
       const result = this.startDefaultEmulator()
+      if (result.vmStarted && this.x11SmokeEnabled) this.x11Smoke.start(this.context, windowStage);
 
       this.promptRootVdaMessage(uiContext)
       this.promptPortUsedMessage(uiContext, result.portsSkipped)
@@ -343,6 +348,7 @@ export default class EntryAbility extends UIAbility {
   }
 
   onWindowStageDestroy(): void {
+    this.x11Smoke.stop();
     // Main window is destroyed, release UI related resources
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onWindowStageDestroy');
   }

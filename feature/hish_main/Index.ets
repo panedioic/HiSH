@@ -8,3 +8,5 @@ export { SharedFolderPage } from './src/main/ets/pages/SharedFolderPage';
 export { UserGuidePage } from './src/main/ets/pages/UserGuidePage';
 export { GuideWebPage } from './src/main/ets/pages/GuideWebPage';
 export { VncPage } from './src/main/ets/pages/VncPage';
+
+export { HgsServiceWindowPage as X11WindowPage } from 'hgs';

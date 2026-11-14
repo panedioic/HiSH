@@ -103,6 +103,7 @@ include_directories(
 # HiSH sources
 add_library(hish_main SHARED
     napi_init.cpp
+    x11_bridge.cpp
     napi_vnc.cpp
     vnc_client.cpp
     vnc_renderer.cpp

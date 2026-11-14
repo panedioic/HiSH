@@ -51,6 +51,10 @@
       ]
     },
     {
+      "name": "hgs",
+      "srcPath": "./hgs"
+    },
+    {
       "name": "hish_main",
       "srcPath": "./feature/hish_main"
     }

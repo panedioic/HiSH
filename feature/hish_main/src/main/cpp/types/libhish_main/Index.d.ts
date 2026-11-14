@@ -9,6 +9,8 @@ export const startVM: (options: NapiVmOptions) => boolean;
 export const onData: (callback: (ArrayBuffer) => void) => void;
 export const onShutdown: (callback: () => void) => void;
 export const sendInput: (content: ArrayBuffer) => void;
+export const startX11Bridge: (endpoint: string) => number;
+export const stopX11Bridge: () => void;
 export const checkPortUsed: (port: number) => boolean;
 export const getImageInfo: (imagePath: string) => string;
 export const getSnapshots: (imagePath: string) => string;

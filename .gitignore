@@ -13,6 +13,7 @@
 /build-profile.json5
 /build-profile.json5.*
 *.hap
+/feature/hish_main/src/main/resources/rawfile/hgs-x11-res.zip
 *.so
 *.so.0
 .idea

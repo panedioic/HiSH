@@ -35,6 +35,7 @@
 #include "include/utils.hpp"
 // VNC NAPI bindings (separate module)
 #include "include/napi_vnc.hpp"
+#include "include/x11_bridge.hpp"
 
 struct data_buffer {
     char *buf;
@@ -1040,6 +1041,7 @@ static napi_value startVM(napi_env env, napi_callback_info info) {
         int argc = argsVector.size();
 
         int status = qemuEntry(argc, argv);
+        hish::StopX11Bridge();
 
         delete[] argv;
 
@@ -1142,6 +1144,23 @@ static napi_value bool_from_int(napi_env env, int v) {
     return result;
 }
 
+static napi_value startX11Bridge(napi_env env, napi_callback_info info) {
+    size_t argc = 1;
+    napi_value argument = nullptr;
+    napi_get_cb_info(env, info, &argc, &argument, nullptr, nullptr);
+    const uint32_t port = argc == 1 ? hish::StartX11Bridge(getString(env, argument)) : 0;
+    napi_value result;
+    napi_create_uint32(env, port, &result);
+    return result;
+}
+
+static napi_value stopX11Bridge(napi_env env, napi_callback_info) {
+    hish::StopX11Bridge();
+    napi_value result;
+    napi_get_undefined(env, &result);
+    return result;
+}
+
 static napi_value checkPortUsed(napi_env env, napi_callback_info info) {
 
     napi_status status;
@@ -1216,6 +1235,8 @@ static napi_value Init(napi_env env, napi_value exports) {
         {"onData", nullptr, onData, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"onShutdown", nullptr, onShutdown, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"sendInput", nullptr, sendInput, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"startX11Bridge", nullptr, startX11Bridge, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"stopX11Bridge", nullptr, stopX11Bridge, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"checkPortUsed", nullptr, checkPortUsed, nullptr, nullptr, nullptr, napi_default, nullptr},
         // 快照管理功能
         {"getImageInfo", nullptr, getImageInfo, nullptr, nullptr, nullptr, napi_default, nullptr},
