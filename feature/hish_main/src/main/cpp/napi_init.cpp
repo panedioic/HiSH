@@ -1,4 +1,7 @@
 #include "napi/native_api.h"
+#ifdef HISH_BUILD_WAYPIPE_PROBE
+#include "waypipe/probe_socket.hpp"
+#endif
 #include <assert.h>
 #include <cerrno>
 #include <cstdint>
@@ -1228,9 +1231,21 @@ static napi_value checkPortUsed(napi_env env, napi_callback_info info) {
     }
 }
 
+static napi_value runWaypipeProbe(napi_env env, napi_callback_info info) {
+#ifdef HISH_BUILD_WAYPIPE_PROBE
+    size_t argc = 1;
+    napi_value argument = nullptr;
+    napi_get_cb_info(env, info, &argc, &argument, nullptr, nullptr);
+    return bool_from_int(env, argc == 1 && hish::waypipe_probe::Start(getString(env, argument)));
+#else
+    return bool_from_int(env, 0);
+#endif
+}
+
 EXTERN_C_START
 static napi_value Init(napi_env env, napi_value exports) {
     napi_property_descriptor desc[] = {
+        {"runWaypipeProbe", nullptr, runWaypipeProbe, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"startVM", nullptr, startVM, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"onData", nullptr, onData, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"onShutdown", nullptr, onShutdown, nullptr, nullptr, nullptr, napi_default, nullptr},

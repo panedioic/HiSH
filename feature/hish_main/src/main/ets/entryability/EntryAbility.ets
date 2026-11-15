@@ -49,6 +49,9 @@ export default class EntryAbility extends UIAbility {
   private x11: X11Session = new X11Session();
   private stageActive: boolean = false;
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    if (want.parameters?.['hish.waypipe.probe'] === '1' && !napi.runWaypipeProbe(this.context.cacheDir)) {
+      hilog.error(DOMAIN, 'HiSH-Waypipe', 'Waypipe probe unavailable or child launch failed');
+    }
     this.x11SmokeEnabled = want.parameters?.['hish.x11'] === '1';
     this.x11TopLevel = this.context.abilityInfo.moduleName === 'tablet' &&
       want.parameters?.['hish.x11.toplevel'] === '1';

@@ -28,3 +28,5 @@ export const vncStopUpdateLoop: () => void;
 export const vncCreateSurface: (surfaceId: bigint) => boolean;
 export const vncResizeSurface: (surfaceId: bigint, width: number, height: number) => number;
 export const vncDestroySurface: () => number;
+
+export const runWaypipeProbe: (directory: string) => boolean;
