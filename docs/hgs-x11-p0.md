@@ -99,3 +99,8 @@ hdc shell aa start -a EntryAbility -b dev.hackeris.hish -m tablet --ps hish.x11.
 `/run/hish-gui run qterminal &`。`hdc shell aa dump -l` 会显示两个
 `X11WindowAbility` 任务。QTerminal 菜单仍使用它的子窗口。退出 HiSH 时，图形会话
 会回收这些窗口。系统仍按设备的主窗口规则限制最小尺寸。
+
+在 ARM64 真机上点击 xterm 和 GTK 各自的窗口，窗口管理器记录的焦点随点击切换。
+用带有 `transient_for` 和 `modal=True` 的 GTK MessageDialog 验证了模态行为：
+对话框挂在独立顶层窗口下，点击父窗口时焦点仍留在对话框。对话框在父窗口内居中，
+系统标题栏下有足够空间显示应用按钮。点击 OK 后对话框关闭，焦点回到原父窗口。
