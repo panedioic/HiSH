@@ -7,7 +7,8 @@ import fs from '@ohos.file.fs';
 import { deviceInfo } from '@kit.BasicServicesKit';
 import napi from 'libhish_main.so';
 import appOption, { CursorShape, UserFont } from '../model/appOption'
-import { X11SmokeSession } from '../service/X11SmokeSession';
+import { X11Session } from '../service/X11Session';
+import { HgsService } from 'hgs';
 import { startVm } from '../lib/startVm';
 import { defaultEmulator, defaultRootfs, Emulator, RootFilesystem } from '../model/Emulator';
 import { util } from '@kit.ArkTS';
@@ -44,7 +45,8 @@ function getFreeVncPort(min: number, max: number): number | undefined {
 
 export default class EntryAbility extends UIAbility {
   private x11SmokeEnabled: boolean = false;
-  private x11Smoke: X11SmokeSession = new X11SmokeSession();
+  private x11: X11Session = new X11Session();
+  private stageActive: boolean = false;
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     this.x11SmokeEnabled = want.parameters?.['hish.x11'] === '1';
     this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_DARK);
@@ -56,6 +58,7 @@ export default class EntryAbility extends UIAbility {
   }
 
   async onWindowStageCreate(windowStage: window.WindowStage): Promise<void> {
+    this.stageActive = true;
     // Main window is created, set main page for this ability
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onWindowStageCreate');
 
@@ -90,8 +93,13 @@ export default class EntryAbility extends UIAbility {
       }
 
       await this.prepareForSharedFolder(appContext)
+      if (!this.stageActive) return;
+      AppStorage.setOrCreate(appOption.vmShutdownRequested, false);
+      napi.onShutdown(() => { void this.onVmShutdown(); });
       const result = this.startDefaultEmulator()
-      if (result.vmStarted && this.x11SmokeEnabled) this.x11Smoke.start(this.context, windowStage);
+      if (result.vmStarted && (this.x11SmokeEnabled || AppStorage.get<boolean>(appOption.x11Enabled))) {
+        this.x11.start(this.context, windowStage);
+      }
 
       this.promptRootVdaMessage(uiContext)
       this.promptPortUsedMessage(uiContext, result.portsSkipped)
@@ -243,6 +251,8 @@ export default class EntryAbility extends UIAbility {
     const terminalUserFonts =
       JSON.parse(await appPref.get(appOption.terminalUserFonts, '[]') as string) as UserFont[];
     AppStorage.setOrCreate(appOption.terminalUserFonts, terminalUserFonts);
+    AppStorage.setOrCreate(appOption.x11Enabled, await appPref.get(appOption.x11Enabled, false) as boolean);
+    AppStorage.setOrCreate(appOption.x11Available, HgsService.create().inspect().capabilities.x11);
     const vncEnabled = await appPref.get(appOption.vncEnabled, false) as boolean;
     AppStorage.setOrCreate(appOption.vncEnabled, vncEnabled);
     const vncPortMode = await appPref.get(appOption.vncPortMode, 'local') as string;
@@ -347,8 +357,18 @@ export default class EntryAbility extends UIAbility {
     }
   }
 
+  private async onVmShutdown(): Promise<void> {
+    const requested = AppStorage.get<boolean>(appOption.vmShutdownRequested);
+    AppStorage.setOrCreate(appOption.vmShutdownRequested, false);
+    AppStorage.set(appOption.currentRunningEmulator, undefined);
+    AppStorage.setOrCreate(appOption.currentEmulatorStatus, 'SHUTDOWN');
+    await this.x11.stop();
+    if (!requested && this.stageActive) await this.context.terminateSelf();
+  }
+
   onWindowStageDestroy(): void {
-    this.x11Smoke.stop();
+    this.stageActive = false;
+    void this.x11.stop();
     // Main window is destroyed, release UI related resources
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onWindowStageDestroy');
   }

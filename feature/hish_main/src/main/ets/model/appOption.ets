@@ -55,6 +55,10 @@ class appOption {
   static displayStatusBar = 'displayStatusBar';
   static showVirtKey = 'showVirtKey';
   static isPowerManagementOpen = 'isPowerManagementOpen';
+  static x11Enabled = 'x11Enabled';
+  static x11Available = 'x11Available';
+  static x11Status = 'x11Status';
+  static vmShutdownRequested = 'vmShutdownRequested';
   static vncEnabled = 'vncEnabled';
   static vncPortMode = 'vncPortMode'; // 'local' | 'lan'
   static vncPort = 'vncPort';         // VNC port number (e.g. 5900)

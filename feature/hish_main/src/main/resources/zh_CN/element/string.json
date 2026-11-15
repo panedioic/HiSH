@@ -1731,6 +1731,34 @@
     {
       "name": "guest_status_bar_toast",
       "value": "开启“状态栏”需要确保模拟器中的 qemu-guest-agent 正常运行"
+    },
+    {
+      "name": "setting_x11",
+      "value": "Linux 应用窗口"
+    },
+    {
+      "name": "setting_x11_enabled",
+      "value": "启用 X11 窗口"
+    },
+    {
+      "name": "setting_x11_unavailable",
+      "value": "当前构建未包含 X11 支持。"
+    },
+    {
+      "name": "setting_x11_starting",
+      "value": "正在启动 X11 服务…"
+    },
+    {
+      "name": "setting_x11_ready",
+      "value": "在 Linux 终端运行 /run/hish-gui run 程序名。"
+    },
+    {
+      "name": "setting_x11_failed",
+      "value": "X11 启动失败。可查看 HiLog 中的 HiSH-X11 日志。"
+    },
+    {
+      "name": "setting_x11_restart",
+      "value": "重启 HiSH 后生效。"
     }
   ]
 }

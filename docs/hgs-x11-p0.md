@@ -49,3 +49,23 @@ ARM64 测试包已使用 `dev.hackeris.hish` 的调试签名在连接的 Harmony
 使用上面的几何参数后，HGS 在同一会话内多次建窗并报告 `frame=true`。
 已验证关闭按钮和窗口聚焦时按 Enter 均可关闭窗口，之后可以重新启动应用。
 默认尺寸的 `xmessage` 曾创建一个过小的子窗口，未呈现首帧，P0 的复现命令显式指定大小和位置。
+
+## 从设置启用 X11
+
+包含 X11 后端的构建可在「设置 → Linux 应用窗口 → 启用 X11 窗口」开启服务。
+退出并重新打开 HiSH 后，设置页会显示服务状态。默认 Alpine 的 root 终端可直接运行：
+
+```sh
+/run/hish-gui status
+/run/hish-gui run xdpyinfo
+/run/hish-gui run xmessage -geometry 420x180+850+640 -buttons OK:0 -default OK 'HiSH X11'
+```
+
+`status` 显示来宾配置的地址，`run xdpyinfo` 验证连接。
+启动工具由 Guest Agent 写入 `/run`，每个新 VM 会话重新配置。原来的
+`/run/hish-x11.env` 仍可供脚本使用。也可以保留原来的调试启动参数来复现 P0。
+
+ARM64 真机已验证设置可以跨 HiSH 重启保存，普通启动可以发布来宾环境。
+`xmessage` 可以接收 Enter 并以状态码 0 退出。`xterm` 和 Qt 的 `qterminal`
+也同时创建了子窗口并呈现首帧。默认 Alpine 镜像的 Qt 字形显示和 GTK 窗口布局
+仍需验证。测试中 `gtk3-demo` 创建了异常狭长的子窗口，HGS 未能呈现它的首帧。

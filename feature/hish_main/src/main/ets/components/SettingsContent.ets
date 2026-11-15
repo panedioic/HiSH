@@ -61,6 +61,9 @@ export default struct SettingsContent {
   @State colorInput: string = ''
   @Watch('saveRunningInBackground') @StorageProp(appOption.runningInBackground) runningInBackground: boolean = false
   @Watch('saveDisplayStatusBar') @StorageProp(appOption.displayStatusBar) displayStatusBar: boolean = false
+  @Watch('saveX11Enabled') @StorageProp(appOption.x11Enabled) x11Enabled: boolean = false
+  @StorageProp(appOption.x11Available) x11Available: boolean = false
+  @StorageProp(appOption.x11Status) x11Status: string = 'idle'
   @Watch('saveVncEnabled') @StorageProp(appOption.vncEnabled) vncEnabled: boolean = false
   @Watch('saveVncPortMode') @StorageProp(appOption.vncPortMode) vncPortMode: string = 'local'
   @Watch('saveVncPort') @StorageProp(appOption.vncPort) vncPort: number = 5900
@@ -305,6 +308,29 @@ export default struct SettingsContent {
       })
   }
 
+  private x11Description(): Resource {
+    if (!this.x11Available) return $r('app.string.setting_x11_unavailable')
+    if (this.x11Enabled && this.x11Status === 'starting') return $r('app.string.setting_x11_starting')
+    if (this.x11Enabled && this.x11Status === 'ready') return $r('app.string.setting_x11_ready')
+    if (this.x11Enabled && this.x11Status === 'failed') return $r('app.string.setting_x11_failed')
+    return $r('app.string.setting_x11_restart')
+  }
+
+  @Builder
+  private buildX11Toggle() {
+    Checkbox()
+      .select(this.x11Enabled)
+      .enabled(this.x11Available)
+      .onChange((value: boolean) => {
+        AppStorage.setOrCreate(appOption.x11Enabled, value)
+        this.getUIContext().getPromptAction().showToast({ message: $r('app.string.setting_x11_restart') })
+      })
+  }
+
+  async saveX11Enabled() {
+    await savePreference(appOption.x11Enabled, this.x11Enabled, this.getUIContext())
+  }
+
   @Builder
   private buildVncEnabled() {
     Checkbox()
@@ -478,6 +504,18 @@ export default struct SettingsContent {
               subTitle: $r('app.string.setting_background_blur_desc'),
               content: () => {
                 this.buildBackgroundBlurSlider()
+              }
+            })
+          }
+          .attributeModifier(this.blockStyle)
+
+          BlockTitle({ content: $r('app.string.setting_x11') })
+          Column() {
+            SettingItem({
+              title: $r('app.string.setting_x11_enabled'),
+              subTitle: this.x11Description(),
+              content: () => {
+                this.buildX11Toggle()
               }
             })
           }

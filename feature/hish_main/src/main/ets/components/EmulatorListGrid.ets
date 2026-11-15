@@ -194,7 +194,7 @@ export default struct EmulatorListGrid {
         this.askForStartEmulator(item)
       },
       onShutdown: (item) => {
-        this.gracefulShutdownAndWait()
+        this.requestShutdown()
       },
       onExport: async (item: Emulator): Promise<void> => {
         // 检查是否有快照
@@ -268,15 +268,9 @@ export default struct EmulatorListGrid {
     applicationContext.restartApp(want);
   }
 
-  async gracefulShutdownAndWait() :Promise<void> {
-    return new Promise((resolve)=> {
-      napi.onShutdown(() => {
-        AppStorage.set(appOption.currentRunningEmulator, undefined)
-        resolve()
-      })
-      const cmd = '\x1apoweroff\n'
-      napi.sendInput(stringToArrayBuffer(cmd))
-    })
+  private requestShutdown(): void {
+    AppStorage.setOrCreate(appOption.vmShutdownRequested, true);
+    napi.sendInput(stringToArrayBuffer('\x1apoweroff\n'));
   }
 
   private askForDeleteEmulator(item: Emulator) {

@@ -5,7 +5,6 @@ import napi from 'libhish_main.so';
 import { webview } from '@kit.ArkWeb';
 import { pasteboard, deviceInfo } from '@kit.BasicServicesKit'
 import appOption, { CursorShape, savePreference, UserFont, UserFontData } from '../model/appOption';
-import { common } from '@kit.AbilityKit';
 import { SymbolGlyphModifier } from '@kit.ArkUI';
 import stringToArrayBuffer from '../lib/stringToArrayBuffer';
 import fileToDataUrl from '../lib/fileToDataUrl';
@@ -399,9 +398,6 @@ export default struct WebTerminal {
   async load(): Promise<void> {
     this.webviewController.runJavaScript('exports.setFocused(true)')
     napi.onData((d: ArrayBuffer): void => this.onData(d))
-    napi.onShutdown((): void => {
-      void this.onShutdown()
-    })
     const vmStatus = AppStorage.get(appOption.currentEmulatorStatus) as string | undefined
     if (vmStatus === 'ABNORMAL') {
       const message = this.getUIContext().getHostContext()?.resourceManager.getStringByNameSync('pm_status_qmp_connect_failed')
@@ -490,12 +486,6 @@ export default struct WebTerminal {
       // 出错时也要清空缓冲区，避免积压
       this.pendingChunks = [];
     }
-  }
-
-  private async onShutdown() {
-    hilog.info(DOMAIN, 'WebTerminal', 'qemu system exited');
-    const context = this.getUIContext().getHostContext() as common.UIAbilityContext
-    await context?.terminateSelf()
   }
 
   getFontSize(): number | null {

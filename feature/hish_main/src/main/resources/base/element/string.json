@@ -1735,6 +1735,34 @@
     {
       "name": "agent_connecting_tips",
       "value": "Attempting to connect to qemu-guest-agent...\nIf it takes too long to connect, please check if the qemu-guest-agent inside the emulator is running properly"
+    },
+    {
+      "name": "setting_x11",
+      "value": "Linux app windows"
+    },
+    {
+      "name": "setting_x11_enabled",
+      "value": "Enable X11 windows"
+    },
+    {
+      "name": "setting_x11_unavailable",
+      "value": "This build does not include X11."
+    },
+    {
+      "name": "setting_x11_starting",
+      "value": "Starting the X11 service…"
+    },
+    {
+      "name": "setting_x11_ready",
+      "value": "In the Linux terminal, run /run/hish-gui run PROGRAM."
+    },
+    {
+      "name": "setting_x11_failed",
+      "value": "X11 failed to start. Check HiLog under HiSH-X11."
+    },
+    {
+      "name": "setting_x11_restart",
+      "value": "Restart HiSH to apply this setting."
     }
   ]
 }

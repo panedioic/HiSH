@@ -7,9 +7,10 @@ import { hilog } from '@kit.PerformanceAnalysisKit';
 import { HgsService, HgsSession, HgsWindowHostService, HgsX11Options } from 'hgs';
 import napi from 'libhish_main.so';
 import QemuAgentManager from '../lib/QemuAgentManager';
+import appOption from '../model/appOption';
 
 const TAG = 'HiSH-X11';
-const AGENT_OWNER = 'x11-p0';
+const AGENT_OWNER = 'x11';
 
 // HGS emits a single FamilyWild Xauthority record. Replace its display number
 // with the number derived from the TCP port visible to the guest.
@@ -59,8 +60,7 @@ async function prepareX11(context: common.UIAbilityContext): Promise<HgsX11Optio
   return { xkbRoot: dir + '/hgs-x11/xkb', keymapPath: dir + '/hgs-x11/keymap.xkm' };
 }
 
-// P0 targets the root shell of the stock image. Publish both files atomically
-// as a directory, so a shell cannot pick up a new cookie with an old display.
+// Publish the cookie and display together for the default VM shell.
 const PUBLISH = [
   'set -eu',
   'umask 077',
@@ -68,38 +68,65 @@ const PUBLISH = [
   'trap \'rm -rf "$dir"\' EXIT',
   'cat > "$dir/Xauthority"',
   'printf "unset WAYLAND_DISPLAY WAYLAND_SOCKET\nexport DISPLAY=%s XAUTHORITY=%s/Xauthority\n" "$1" "$dir" > "$dir/env"',
+  'printf "%s\n" "$2" > "$dir/hish-gui"',
+  'chmod 700 "$dir/hish-gui"',
+  'ln -sfn "$dir/hish-gui" "$dir/launcher"',
+  'mv -Tf "$dir/launcher" /run/hish-gui',
   'ln -sfn "$dir/env" "$dir/current"',
   'mv -Tf "$dir/current" /run/hish-x11.env',
   'trap - EXIT',
 ].join('\n');
 
-export class X11SmokeSession {
+const LAUNCHER = [
+  '#!/bin/sh',
+  'if [ ! -r /run/hish-x11.env ]; then',
+  '  echo "HiSH X11 is unavailable for this user." >&2',
+  '  exit 1',
+  'fi',
+  '. /run/hish-x11.env',
+  'case "${1-}" in',
+  '  status) printf "DISPLAY=%s\n" "$DISPLAY" ;;',
+  '  run) shift; if [ "$#" -eq 0 ]; then echo "Usage: /run/hish-gui run PROGRAM [ARG...]" >&2; exit 2; fi; exec "$@" ;;',
+  '  *) echo "Usage: /run/hish-gui {status|run PROGRAM [ARG...]}" >&2; exit 2 ;;',
+  'esac',
+].join('\n');
+
+export class X11Session {
   private active: boolean = false;
   private pending: Promise<void> | null = null;
+  private stopping: Promise<void> = Promise.resolve();
   private listener: number = 0;
   private session: HgsSession | null = null;
 
   start(context: common.UIAbilityContext, stage: window.WindowStage): void {
-    if (this.pending) return;
+    if (this.pending || this.active) return;
     this.active = true;
+    AppStorage.setOrCreate(appOption.x11Status, 'starting');
     this.pending = this.run(context, stage);
   }
 
-  stop(): void {
+  stop(): Promise<void> {
+    if (this.active) AppStorage.setOrCreate(appOption.x11Status, 'idle');
     this.active = false;
     napi.stopX11Bridge();
     if (this.session) {
       this.session = null;
-      void HgsWindowHostService.stopService();
+      this.stopping = HgsWindowHostService.stopService().catch((error: Error) => {
+        hilog.error(0, TAG, 'X11 stop failed: %{public}s', String(error));
+      });
     }
     if (this.listener) {
       HgsService.create().offEvent(this.listener);
       this.listener = 0;
     }
+    return this.stopping;
   }
 
   private async run(context: common.UIAbilityContext, stage: window.WindowStage): Promise<void> {
     try {
+      await this.stopping;
+      if (!this.active) return;
+      if (!HgsService.create().inspect().capabilities.x11) throw new Error('HGS X11 is not built');
       const x11 = await prepareX11(context);
       if (!this.active) return;
       HgsWindowHostService.init(context);
@@ -120,7 +147,8 @@ export class X11SmokeSession {
         if (event.epoch !== session.epoch) return;
         if (event.kind === 'backend-disconnected') {
           hilog.error(0, TAG, 'Xwayland disconnected');
-          this.stop();
+          void this.stop();
+          AppStorage.setOrCreate(appOption.x11Status, 'failed');
         } else if (event.window.protocol === 'x11') {
           hilog.info(0, TAG, 'window %{public}s %{public}s frame=%{public}s',
             event.kind, event.window.id, String(event.window.framePresented));
@@ -130,11 +158,15 @@ export class X11SmokeSession {
       const authority = guestAuthority(endpoint.authorityPath, number);
       const display = '10.0.2.2:' + number;
       await this.publish(authority, display);
-      if (this.active) hilog.info(0, TAG,
-        'Ready: DISPLAY=%{public}s. In the guest run: . /run/hish-x11.env', display);
+      if (this.active) {
+        AppStorage.setOrCreate(appOption.x11Status, 'ready');
+        hilog.info(0, TAG, 'Ready: DISPLAY=%{public}s. Use /run/hish-gui run PROGRAM', display);
+      }
     } catch (error) {
       hilog.error(0, TAG, 'X11 startup failed: %{public}s', String(error));
-      this.stop();
+      const failed = this.active;
+      await this.stop();
+      if (failed) AppStorage.setOrCreate(appOption.x11Status, 'failed');
     } finally {
       this.pending = null;
     }
@@ -147,7 +179,7 @@ export class X11SmokeSession {
       if (agent) {
         try {
           if (!this.active) return;
-          const pid = await agent.exec('/bin/sh', ['-c', PUBLISH, 'hish-x11', display], authority);
+          const pid = await agent.exec('/bin/sh', ['-c', PUBLISH, 'hish-x11', display, LAUNCHER], authority);
           if (pid !== null) {
             for (let poll = 0; this.active && poll < 15; ++poll) {
               const status = await agent.execStatus(pid);
