@@ -65,7 +65,37 @@ ARM64 测试包已使用 `dev.hackeris.hish` 的调试签名在连接的 Harmony
 启动工具由 Guest Agent 写入 `/run`，每个新 VM 会话重新配置。原来的
 `/run/hish-x11.env` 仍可供脚本使用。也可以保留原来的调试启动参数来复现 P0。
 
+### Alpine 图形应用依赖
+
+默认 Alpine 镜像可能没有 Fontconfig 可用的字体。先在来宾安装字体和需要的应用。
+
+```sh
+apk add font-dejavu xterm gtk+3.0-demo qterminal
+/run/hish-gui run xterm -geometry 60x18+700+520
+/run/hish-gui run gtk3-demo
+/run/hish-gui run qterminal
+```
+
+在同一个 HiSH 终端中启动多个应用时，可在命令末尾加 `&`。
+可用 `fc-list` 检查来宾能否找到字体。QTerminal 如果提示缺少 D-Bus 会话，
+可在来宾安装 `dbus`，再用 `dbus-run-session /run/hish-gui run qterminal` 启动。
+
 ARM64 真机已验证设置可以跨 HiSH 重启保存，普通启动可以发布来宾环境。
-`xmessage` 可以接收 Enter 并以状态码 0 退出。`xterm` 和 Qt 的 `qterminal`
-也同时创建了子窗口并呈现首帧。默认 Alpine 镜像的 Qt 字形显示和 GTK 窗口布局
-仍需验证。测试中 `gtk3-demo` 创建了异常狭长的子窗口，HGS 未能呈现它的首帧。
+`xmessage` 接收 Enter 后以状态码 0 退出，`xterm` 呈现了首帧。安装
+`font-dejavu` 前，`fc-list` 返回零条记录，QTerminal 文字显示为方框，
+`gtk3-demo` 的窗口尺寸异常且无首帧。安装字体后，两个窗口均正常呈现。
+在 GTK 窗口中点击列表可切换示例，在 QTerminal 中键入 `exit` 可关闭窗口。
+
+## 平板独立窗口试用
+
+在支持浮动主窗口的设备上，可为 X11 顶层窗口启用独立的 HarmonyOS Ability。
+先正常退出 HiSH，再执行：
+
+```sh
+hdc shell aa start -a EntryAbility -b dev.hackeris.hish -m tablet --ps hish.x11.toplevel 1
+```
+
+等来宾终端就绪后，分别运行 `/run/hish-gui run xterm &` 和
+`/run/hish-gui run qterminal &`。`hdc shell aa dump -l` 会显示两个
+`X11WindowAbility` 任务。QTerminal 菜单仍使用它的子窗口。退出 HiSH 时，图形会话
+会回收这些窗口。系统仍按设备的主窗口规则限制最小尺寸。

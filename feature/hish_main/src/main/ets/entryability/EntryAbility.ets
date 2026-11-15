@@ -44,11 +44,14 @@ function getFreeVncPort(min: number, max: number): number | undefined {
 }
 
 export default class EntryAbility extends UIAbility {
+  private x11TopLevel: boolean = false;
   private x11SmokeEnabled: boolean = false;
   private x11: X11Session = new X11Session();
   private stageActive: boolean = false;
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     this.x11SmokeEnabled = want.parameters?.['hish.x11'] === '1';
+    this.x11TopLevel = this.context.abilityInfo.moduleName === 'tablet' &&
+      want.parameters?.['hish.x11.toplevel'] === '1';
     this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_DARK);
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
   }
@@ -97,8 +100,8 @@ export default class EntryAbility extends UIAbility {
       AppStorage.setOrCreate(appOption.vmShutdownRequested, false);
       napi.onShutdown(() => { void this.onVmShutdown(); });
       const result = this.startDefaultEmulator()
-      if (result.vmStarted && (this.x11SmokeEnabled || AppStorage.get<boolean>(appOption.x11Enabled))) {
-        this.x11.start(this.context, windowStage);
+      if (result.vmStarted && (this.x11SmokeEnabled || this.x11TopLevel || AppStorage.get<boolean>(appOption.x11Enabled))) {
+        this.x11.start(this.context, windowStage, this.x11TopLevel);
       }
 
       this.promptRootVdaMessage(uiContext)

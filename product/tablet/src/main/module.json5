@@ -56,6 +56,17 @@
     "pages": "$profile:main_pages",
     "abilities": [
       {
+        "name": "X11WindowAbility",
+        "srcEntry": "./ets/entryability/X11WindowAbility.ets",
+        "description": "$string:EntryAbility_desc",
+        "icon": "$media:layered_image",
+        "label": "$string:EntryAbility_label",
+        "startWindowIcon": "$media:startIcon",
+        "startWindowBackground": "$color:start_window_background",
+        "launchType": "multiton",
+        "exported": false
+      },
+      {
         "name": "EntryAbility",
         "srcEntry": "./ets/entryability/EntryAbility.ets",
         "description": "$string:EntryAbility_desc",

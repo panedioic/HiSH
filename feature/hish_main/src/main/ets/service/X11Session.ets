@@ -98,11 +98,11 @@ export class X11Session {
   private listener: number = 0;
   private session: HgsSession | null = null;
 
-  start(context: common.UIAbilityContext, stage: window.WindowStage): void {
+  start(context: common.UIAbilityContext, stage: window.WindowStage, topLevel: boolean): void {
     if (this.pending || this.active) return;
     this.active = true;
     AppStorage.setOrCreate(appOption.x11Status, 'starting');
-    this.pending = this.run(context, stage);
+    this.pending = this.run(context, stage, topLevel);
   }
 
   stop(): Promise<void> {
@@ -122,14 +122,16 @@ export class X11Session {
     return this.stopping;
   }
 
-  private async run(context: common.UIAbilityContext, stage: window.WindowStage): Promise<void> {
+  private async run(context: common.UIAbilityContext, stage: window.WindowStage, topLevel: boolean): Promise<void> {
     try {
       await this.stopping;
       if (!this.active) return;
       if (!HgsService.create().inspect().capabilities.x11) throw new Error('HGS X11 is not built');
       const x11 = await prepareX11(context);
       if (!this.active) return;
-      HgsWindowHostService.init(context);
+      HgsWindowHostService.init(context, {
+        x11AbilityName: topLevel ? 'X11WindowAbility' : undefined
+      });
       const session = await HgsWindowHostService.startService(stage, {
         protocols: 'x11', runtimeDir: context.filesDir + '/x11-p0-runtime',
         composition: 'per-window', setProcessEnvironment: false, x11

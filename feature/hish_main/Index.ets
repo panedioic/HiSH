@@ -10,3 +10,4 @@ export { GuideWebPage } from './src/main/ets/pages/GuideWebPage';
 export { VncPage } from './src/main/ets/pages/VncPage';
 
 export { HgsServiceWindowPage as X11WindowPage } from 'hgs';
+export { HgsX11WindowAbility as X11WindowAbility } from 'hgs';
