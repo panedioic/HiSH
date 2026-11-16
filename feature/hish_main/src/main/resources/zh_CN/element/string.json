@@ -1759,6 +1759,30 @@
     {
       "name": "setting_x11_restart",
       "value": "重启 HiSH 后生效。"
+    },
+    {
+      "name": "setting_x11_fallback",
+      "value": "Wayland 宿主启动失败时使用 X11。"
+    },
+    {
+      "name": "setting_wayland_enabled",
+      "value": "启用 Wayland 窗口（实验）"
+    },
+    {
+      "name": "setting_wayland_unavailable",
+      "value": "当前构建未包含 Wayland 窗口支持。"
+    },
+    {
+      "name": "setting_wayland_starting",
+      "value": "正在来宾中准备 Wayland 启动命令…"
+    },
+    {
+      "name": "setting_wayland_ready",
+      "value": "在 Linux 终端运行 /run/hish-wayland run 程序名。"
+    },
+    {
+      "name": "setting_wayland_failed",
+      "value": "Wayland 启动失败。可查看 HiLog 中的 HiSH-Waypipe 日志。"
     }
   ]
 }

@@ -1763,6 +1763,30 @@
     {
       "name": "setting_x11_restart",
       "value": "Restart HiSH to apply this setting."
+    },
+    {
+      "name": "setting_x11_fallback",
+      "value": "Use X11 if the Wayland host fails to start."
+    },
+    {
+      "name": "setting_wayland_enabled",
+      "value": "Enable Wayland windows (experimental)"
+    },
+    {
+      "name": "setting_wayland_unavailable",
+      "value": "This build does not include Wayland window support."
+    },
+    {
+      "name": "setting_wayland_starting",
+      "value": "Preparing the Wayland launcher in Linux…"
+    },
+    {
+      "name": "setting_wayland_ready",
+      "value": "In the Linux terminal, run /run/hish-wayland run PROGRAM."
+    },
+    {
+      "name": "setting_wayland_failed",
+      "value": "Wayland failed to start. Check HiLog under HiSH-Waypipe."
     }
   ]
 }

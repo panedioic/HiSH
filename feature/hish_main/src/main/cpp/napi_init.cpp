@@ -1242,6 +1242,18 @@ static napi_value runWaypipeProbe(napi_env env, napi_callback_info info) {
 #endif
 }
 
+static napi_value isWaypipeAvailable(napi_env env, napi_callback_info info) {
+#ifdef HISH_BUILD_WAYPIPE_PROBE
+    void* library = dlopen("libhish_waypipe.so", RTLD_NOW | RTLD_LOCAL);
+    if (!library) return bool_from_int(env, 0);
+    const bool available = dlsym(library, "hish_waypipe_main") != nullptr;
+    dlclose(library);
+    return bool_from_int(env, available);
+#else
+    return bool_from_int(env, 0);
+#endif
+}
+
 static napi_value startWaypipeProxy(napi_env env, napi_callback_info info) {
 #ifdef HISH_BUILD_WAYPIPE_PROBE
     size_t argc = 1;
@@ -1266,6 +1278,7 @@ EXTERN_C_START
 static napi_value Init(napi_env env, napi_value exports) {
     napi_property_descriptor desc[] = {
         {"runWaypipeProbe", nullptr, runWaypipeProbe, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"isWaypipeAvailable", nullptr, isWaypipeAvailable, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"startWaypipeProxy", nullptr, startWaypipeProxy, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"stopWaypipeProxy", nullptr, stopWaypipeProxy, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"startVM", nullptr, startVM, nullptr, nullptr, nullptr, napi_default, nullptr},

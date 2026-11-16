@@ -47,7 +47,12 @@ python3 scripts/build_waypipe_probe.py "$WAYPIPE_SOURCE" "$OHOS_NATIVE_SDK" \
   --guest-output feature/hish_main/src/main/resources/rawfile/hish-waypipe-linux-arm64
 ```
 
-仍需在 CMake 参数中启用 `HISH_BUILD_WAYPIPE_PROBE`。安装签名包后，从应用停止状态启动。
+仍需在 CMake 参数中启用 `HISH_BUILD_WAYPIPE_PROBE`。安装签名平板包后，在
+「设置 → Linux 应用窗口」中打开「启用 Wayland 窗口（实验）」，然后重启 HiSH。
+同时启用 X11 时，普通启动优先尝试 Wayland。Wayland 宿主启动失败时尝试 X11。
+缺少 Waypipe 支持的构建会禁用 Wayland 开关，并按原有 X11 偏好启动。
+
+调试时也可在应用停止状态下通过启动参数直接启用 Wayland。
 
 ```sh
 hdc shell aa start -a EntryAbility -b dev.hackeris.hish -m tablet --ps hish.wayland 1

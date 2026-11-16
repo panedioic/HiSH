@@ -45,7 +45,7 @@ function getFreeVncPort(min: number, max: number): number | undefined {
 }
 
 export default class EntryAbility extends UIAbility {
-  private waypipeEnabled: boolean = false;
+  private waypipeRequested: boolean = false;
   private waypipe: WaypipeSession = new WaypipeSession();
   private x11TopLevel: boolean = false;
   private x11SmokeEnabled: boolean = false;
@@ -55,7 +55,7 @@ export default class EntryAbility extends UIAbility {
     if (want.parameters?.['hish.waypipe.probe'] === '1' && !napi.runWaypipeProbe(this.context.cacheDir)) {
       hilog.error(DOMAIN, 'HiSH-Waypipe', 'Waypipe probe unavailable or child launch failed');
     }
-    this.waypipeEnabled = this.context.abilityInfo.moduleName === 'tablet' &&
+    this.waypipeRequested = this.context.abilityInfo.moduleName === 'tablet' &&
       want.parameters?.['hish.wayland'] === '1';
     this.x11SmokeEnabled = want.parameters?.['hish.x11'] === '1';
     this.x11TopLevel = this.context.abilityInfo.moduleName === 'tablet' &&
@@ -107,14 +107,16 @@ export default class EntryAbility extends UIAbility {
       if (!this.stageActive) return;
       AppStorage.setOrCreate(appOption.vmShutdownRequested, false);
       napi.onShutdown(() => { void this.onVmShutdown(); });
-      const waypipeSocket = this.waypipeEnabled ? await this.waypipe.start(this.context, windowStage) : '';
+      const x11Requested = this.x11SmokeEnabled || this.x11TopLevel;
+      const useWayland = this.waypipeRequested || (!x11Requested &&
+        AppStorage.get<boolean>(appOption.waylandEnabled) && AppStorage.get<boolean>(appOption.waylandAvailable));
+      const waypipeSocket = useWayland ? await this.waypipe.start(this.context, windowStage) : '';
       if (!this.stageActive) return;
       const result = this.startDefaultEmulator(waypipeSocket)
       if (waypipeSocket) {
         if (result.vmStarted) void this.waypipe.configureGuest();
         else void this.waypipe.stop();
-      } else if (result.vmStarted &&
-        (this.x11SmokeEnabled || this.x11TopLevel || AppStorage.get<boolean>(appOption.x11Enabled))) {
+      } else if (result.vmStarted && (x11Requested || AppStorage.get<boolean>(appOption.x11Enabled))) {
         this.x11.start(this.context, windowStage, this.x11TopLevel);
       }
 
@@ -270,7 +272,11 @@ export default class EntryAbility extends UIAbility {
       JSON.parse(await appPref.get(appOption.terminalUserFonts, '[]') as string) as UserFont[];
     AppStorage.setOrCreate(appOption.terminalUserFonts, terminalUserFonts);
     AppStorage.setOrCreate(appOption.x11Enabled, await appPref.get(appOption.x11Enabled, false) as boolean);
-    AppStorage.setOrCreate(appOption.x11Available, HgsService.create().inspect().capabilities.x11);
+    const capabilities = HgsService.create().inspect().capabilities;
+    AppStorage.setOrCreate(appOption.x11Available, capabilities.x11);
+    AppStorage.setOrCreate(appOption.waylandEnabled, await appPref.get(appOption.waylandEnabled, false) as boolean);
+    AppStorage.setOrCreate(appOption.waylandAvailable, this.context.abilityInfo.moduleName === 'tablet' &&
+      capabilities.wayland && WaypipeSession.available(this.context));
     const vncEnabled = await appPref.get(appOption.vncEnabled, false) as boolean;
     AppStorage.setOrCreate(appOption.vncEnabled, vncEnabled);
     const vncPortMode = await appPref.get(appOption.vncPortMode, 'local') as string;

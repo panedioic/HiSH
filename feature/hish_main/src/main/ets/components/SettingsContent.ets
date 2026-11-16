@@ -64,6 +64,9 @@ export default struct SettingsContent {
   @Watch('saveX11Enabled') @StorageProp(appOption.x11Enabled) x11Enabled: boolean = false
   @StorageProp(appOption.x11Available) x11Available: boolean = false
   @StorageProp(appOption.x11Status) x11Status: string = 'idle'
+  @Watch('saveWaylandEnabled') @StorageProp(appOption.waylandEnabled) waylandEnabled: boolean = false
+  @StorageProp(appOption.waylandAvailable) waylandAvailable: boolean = false
+  @StorageProp(appOption.waylandStatus) waylandStatus: string = 'idle'
   @Watch('saveVncEnabled') @StorageProp(appOption.vncEnabled) vncEnabled: boolean = false
   @Watch('saveVncPortMode') @StorageProp(appOption.vncPortMode) vncPortMode: string = 'local'
   @Watch('saveVncPort') @StorageProp(appOption.vncPort) vncPort: number = 5900
@@ -313,6 +316,7 @@ export default struct SettingsContent {
     if (this.x11Enabled && this.x11Status === 'starting') return $r('app.string.setting_x11_starting')
     if (this.x11Enabled && this.x11Status === 'ready') return $r('app.string.setting_x11_ready')
     if (this.x11Enabled && this.x11Status === 'failed') return $r('app.string.setting_x11_failed')
+    if (this.x11Enabled && this.waylandEnabled && this.waylandAvailable) return $r('app.string.setting_x11_fallback')
     return $r('app.string.setting_x11_restart')
   }
 
@@ -329,6 +333,29 @@ export default struct SettingsContent {
 
   async saveX11Enabled() {
     await savePreference(appOption.x11Enabled, this.x11Enabled, this.getUIContext())
+  }
+
+  private waylandDescription(): Resource {
+    if (!this.waylandAvailable) return $r('app.string.setting_wayland_unavailable')
+    if (this.waylandEnabled && this.waylandStatus === 'starting') return $r('app.string.setting_wayland_starting')
+    if (this.waylandEnabled && this.waylandStatus === 'ready') return $r('app.string.setting_wayland_ready')
+    if (this.waylandEnabled && this.waylandStatus === 'failed') return $r('app.string.setting_wayland_failed')
+    return $r('app.string.setting_x11_restart')
+  }
+
+  @Builder
+  private buildWaylandToggle() {
+    Checkbox()
+      .select(this.waylandEnabled)
+      .enabled(this.waylandAvailable)
+      .onChange((value: boolean) => {
+        AppStorage.setOrCreate(appOption.waylandEnabled, value)
+        this.getUIContext().getPromptAction().showToast({ message: $r('app.string.setting_x11_restart') })
+      })
+  }
+
+  async saveWaylandEnabled() {
+    await savePreference(appOption.waylandEnabled, this.waylandEnabled, this.getUIContext())
   }
 
   @Builder
@@ -518,6 +545,15 @@ export default struct SettingsContent {
                 this.buildX11Toggle()
               }
             })
+            if (deviceInfo.deviceType === 'tablet' || this.waylandAvailable) {
+              SettingItem({
+                title: $r('app.string.setting_wayland_enabled'),
+                subTitle: this.waylandDescription(),
+                content: () => {
+                  this.buildWaylandToggle()
+                }
+              })
+            }
           }
           .attributeModifier(this.blockStyle)
 

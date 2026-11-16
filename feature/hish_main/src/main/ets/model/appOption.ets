@@ -58,6 +58,9 @@ class appOption {
   static x11Enabled = 'x11Enabled';
   static x11Available = 'x11Available';
   static x11Status = 'x11Status';
+  static waylandEnabled = 'waylandEnabled';
+  static waylandAvailable = 'waylandAvailable';
+  static waylandStatus = 'waylandStatus';
   static vmShutdownRequested = 'vmShutdownRequested';
   static vncEnabled = 'vncEnabled';
   static vncPortMode = 'vncPortMode'; // 'local' | 'lan'

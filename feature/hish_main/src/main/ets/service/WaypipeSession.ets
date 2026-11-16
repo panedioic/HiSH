@@ -5,9 +5,12 @@ import { hilog } from '@kit.PerformanceAnalysisKit';
 import { HgsService, HgsWindowHostService } from 'hgs';
 import napi from 'libhish_main.so';
 import QemuAgentManager from '../lib/QemuAgentManager';
+import appOption from '../model/appOption';
 
 const TAG = 'HiSH-Waypipe';
 const AGENT_OWNER = 'waypipe';
+const GUEST_BINARY = 'hish-waypipe-linux-arm64';
+const GUEST_LAUNCHER = 'hish-wayland-run.sh';
 
 const PUBLISH_LAUNCHER = [
   'set -eu',
@@ -56,9 +59,20 @@ export class WaypipeSession {
   private listener: number = 0;
   private cancelled: boolean = false;
 
+  static available(context: common.UIAbilityContext): boolean {
+    if (!napi.isWaypipeAvailable()) return false;
+    try {
+      const assets = context.resourceManager.getRawFileListSync('');
+      return assets.includes(GUEST_BINARY) && assets.includes(GUEST_LAUNCHER);
+    } catch (_) {
+      return false;
+    }
+  }
+
   start(context: common.UIAbilityContext, stage: window.WindowStage): Promise<string> {
     this.stopping = null;
     this.cancelled = false;
+    AppStorage.setOrCreate(appOption.waylandStatus, 'starting');
     this.pending = this.prepare(context, stage);
     return this.pending;
   }
@@ -68,8 +82,8 @@ export class WaypipeSession {
       this.directory = fs.mkdtempSync(context.cacheDir + '/wp-XXXXXX');
       const guest = this.directory + '/guest';
       fs.mkdirSync(guest);
-      copyRawFile(context, 'hish-waypipe-linux-arm64', guest + '/waypipe');
-      copyRawFile(context, 'hish-wayland-run.sh', guest + '/launcher');
+      copyRawFile(context, GUEST_BINARY, guest + '/waypipe');
+      copyRawFile(context, GUEST_LAUNCHER, guest + '/launcher');
       const socketPath = this.directory + '/p';
       HgsWindowHostService.init(context, { abilityName: 'WaylandWindowAbility', pageUrl: 'pages/HgsWindowPage' });
       const session = await HgsWindowHostService.startService(stage, {
@@ -98,6 +112,7 @@ export class WaypipeSession {
     } catch (error) {
       hilog.error(0, TAG, 'Waypipe startup failed: %{public}s', String(error));
       await this.release();
+      if (!this.cancelled) AppStorage.setOrCreate(appOption.waylandStatus, 'failed');
       return '';
     }
   }
@@ -110,7 +125,9 @@ export class WaypipeSession {
           try {
             if (this.cancelled) return;
             const result = await agent.execAndGetOutput('/bin/sh', ['-c', PUBLISH_LAUNCHER]);
+            if (this.cancelled) return;
             if (result?.trim() === 'ready') {
+              AppStorage.setOrCreate(appOption.waylandStatus, 'ready');
               hilog.info(0, TAG, 'Guest launcher ready: /run/hish-wayland run PROGRAM');
               return;
             }
@@ -123,11 +140,13 @@ export class WaypipeSession {
       if (!this.cancelled) throw new Error('QEMU Guest Agent did not publish /run/hish-wayland');
     } catch (error) {
       hilog.error(0, TAG, 'Wayland guest startup failed: %{public}s', String(error));
+      if (!this.cancelled) AppStorage.setOrCreate(appOption.waylandStatus, 'failed');
     }
   }
 
   stop(): Promise<void> {
     this.cancelled = true;
+    AppStorage.setOrCreate(appOption.waylandStatus, 'idle');
     if (this.stopping === null) {
       this.stopping = (this.pending ?? Promise.resolve('')).then(() => this.release());
     }
