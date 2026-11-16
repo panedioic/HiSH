@@ -19,7 +19,8 @@ def main() -> None:
     with tempfile.TemporaryDirectory(prefix="hish-waypipe-") as temp:
         work = Path(temp)
         source = shutil.copytree(args.source, work / "src", ignore=shutil.ignore_patterns(".git"))
-        patch = Path(__file__).resolve().parent / "patches/waypipe-0.9.2-virtio-serial.patch"
+        patches = Path(__file__).resolve().parent / "patches"
+        patch = patches / "waypipe-0.9.2-virtio-serial.patch"
         subprocess.run(["patch", "-p1", "-i", str(patch)], cwd=source, check=True)
         with (source / "src/meson.build").open("a") as meson:
             meson.write("""
@@ -56,6 +57,9 @@ endian = 'little'
         args.output.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(build / "src/libhish_waypipe.so", args.output)
         if args.guest_output:
+            guest_source = shutil.copytree(args.source, work / "guest-src", ignore=shutil.ignore_patterns(".git"))
+            patch = patches / "waypipe-0.9.2-guest-virtio.patch"
+            subprocess.run(["patch", "-p1", "-i", str(patch)], cwd=guest_source, check=True)
             cross = work / "linux.ini"
             cross.write_text("""[binaries]
 c = 'aarch64-linux-gnu-gcc'
@@ -75,7 +79,7 @@ cpu = 'aarch64'
 endian = 'little'
 """)
             build = work / "guest"
-            subprocess.run(["meson", "setup", str(build), str(args.source.resolve()),
+            subprocess.run(["meson", "setup", str(build), str(guest_source),
                             "--cross-file", str(cross), *options], check=True)
             subprocess.run(["meson", "compile", "-C", str(build), "waypipe"], check=True)
             args.guest_output.parent.mkdir(parents=True, exist_ok=True)

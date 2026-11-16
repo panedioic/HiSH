@@ -1,14 +1,43 @@
 --- a/src/client.c
 +++ b/src/client.c
-@@ -368,4 +368,30 @@
+@@ -316,6 +316,4 @@
+-static int run_single_client(int channelsock, pid_t *eol_pid,
+-		const struct main_config *config, int disp_fd)
+-{
+-	/* To support reconnection attempts, this mode creates a child
+-	 * reconnection watcher process, linked via socketpair */
+-	int retcode = EXIT_SUCCESS;
++static int accept_channel(int channelsock, pid_t *eol_pid,
++		const struct main_config *config, struct connection_token *token,
++		int *retcode, bool reuse)
++{
+@@ -323,2 +320,0 @@
+-	struct connection_token conn_id;
+-	memset(&conn_id, 0, sizeof(conn_id));
+@@ -328 +324 @@
+-			eol_pid = 0; // < in case eol_pid is recycled
++			*eol_pid = 0; // < in case eol_pid is recycled
+@@ -332 +328 @@
+-			retcode = WEXITSTATUS(status);
++			*retcode = WEXITSTATUS(status);
+@@ -347 +343 @@
+-			retcode = EXIT_FAILURE;
++			*retcode = EXIT_FAILURE;
+@@ -361 +357 @@
+-			retcode = EXIT_FAILURE;
++			*retcode = EXIT_FAILURE;
+@@ -368,7 +364,33 @@
 -		if (read(chanclient, &conn_id.header, sizeof(conn_id.header)) !=
 -				sizeof(conn_id.header)) {
 -			wp_error("Failed to get connection id header");
 -			goto fail_cc;
+-		}
+-
+-		if (check_conn_header(conn_id.header, config, err_msg,
 +		/* QEMU may close the chardev connection before the guest
 +		 * opens the virtio port. Wait for a complete guest token. */
 +		size_t received = 0;
-+		while (received < sizeof(conn_id) && !shutdown_flag) {
++		while (received < sizeof(*token) && !shutdown_flag) {
 +			struct pollfd handshake = {chanclient, POLLIN, 0};
 +			int ready = poll(&handshake, 1, -1);
 +			if (ready < 0 && errno == EINTR) {
@@ -17,8 +46,8 @@
 +			if (ready <= 0) {
 +				break;
 +			}
-+			ssize_t count = read(chanclient, (char *)&conn_id + received,
-+					sizeof(conn_id) - received);
++			ssize_t count = read(chanclient, (char *)token + received,
++					sizeof(*token) - received);
 +			if (count < 0 && errno == EINTR && !shutdown_flag) {
 +				continue;
 +			}
@@ -31,13 +60,88 @@
 +			}
 +			received += (size_t)count;
 +		}
-+		if (received != sizeof(conn_id)) {
++		if (received != sizeof(*token)) {
 +			checked_close(chanclient);
 +			chanclient = -1;
 +			continue;
-@@ -378,5 +403,0 @@
++		}
++
++		if (check_conn_header(token->header, config, err_msg,
+@@ -378,10 +400,6 @@
 -			goto fail_cc;
 -		}
 -		if (read(chanclient, &conn_id.key, sizeof(conn_id.key)) !=
 -				sizeof(conn_id.key)) {
 -			wp_error("Failed to get connection id key");
+-			goto fail_cc;
+-		}
+-		break;
+-	fail_cc:
+-		retcode = EXIT_FAILURE;
++		} else if (!reuse || !(token->header & (CONN_UPDATE_BIT |
++							   CONN_RECONNECTABLE_BIT))) {
++			return chanclient;
++		} else {
++			wp_error("HiSH virtio sessions require a new, non-reconnectable token");
++		}
+@@ -390,3 +408,46 @@
+-		break;
+-	}
+-	if (retcode == EXIT_FAILURE || shutdown_flag || chanclient == -1) {
++		if (!reuse) {
++			*retcode = EXIT_FAILURE;
++			break;
++		}
++	}
++	return -1;
++}
++
++/* Each VM application gets its own compositor connection and Waypipe
++ * state. Keep the virtio-side listener so QEMU can reconnect. */
++static int run_virtio_client(int cwd_fd, int channelsock,
++		const struct main_config *config, struct socket_path display_path)
++{
++	int retcode = EXIT_SUCCESS;
++	pid_t no_child = 0;
++	while (!shutdown_flag) {
++		struct connection_token token;
++		int channel = accept_channel(channelsock, &no_child, config,
++				&token, &retcode, true);
++		if (channel == -1) {
++			break;
++		}
++
++		int display_fd = -1;
++		if (connect_to_socket(cwd_fd, display_path, NULL, &display_fd) == -1) {
++			checked_close(channel);
++			retcode = EXIT_FAILURE;
++			break;
++		}
++
++		struct main_config session_config = *config;
++		apply_conn_header(token.header, &session_config);
++		main_interface_loop(channel, display_fd, -1, &session_config, true);
++	}
++	checked_close(channelsock);
++	return retcode;
++}
++
++static int run_single_client(int channelsock, pid_t *eol_pid,
++		const struct main_config *config, int disp_fd)
++{
++	int retcode = EXIT_SUCCESS;
++	struct connection_token conn_id;
++	int chanclient = accept_channel(channelsock, eol_pid, config,
++			&conn_id, &retcode, false);
++	if (chanclient == -1) {
+@@ -398,0 +460 @@
++		checked_close(chanclient);
+@@ -750 +812,2 @@
+-	if (oneshot) {
++	const bool virtio_client = oneshot && !wayland_socket && eol_pid == 0;
++	if (oneshot && !virtio_client) {
+@@ -766 +829,3 @@
+-	if (oneshot) {
++	if (virtio_client) {
++		retcode = run_virtio_client(cwd_fd, channelsock, config, display_path);
++	} else if (oneshot) {

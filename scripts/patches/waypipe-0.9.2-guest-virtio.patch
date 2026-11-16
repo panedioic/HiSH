@@ -1,0 +1,95 @@
+--- a/src/server.c
++++ b/src/server.c
+@@ -40,0 +41 @@
++#include <time.h>
+@@ -198,0 +200,35 @@
++/* Keep this descriptor open while QEMU reconnects. Closing and probing
++ * repeatedly sends guest port-close events and can drop the new connection. */
++static int connect_to_virtio(struct socket_path path)
++{
++	char device[sizeof(((struct sockaddr_un *)0)->sun_path) + 32];
++	snprintf(device, sizeof(device), "%s/%s", path.folder,
++			path.filename->sun_path);
++	int fd = open(device, O_RDWR | O_CLOEXEC);
++	if (fd == -1) {
++		wp_error("Cannot open virtio port '%s': %s", device, strerror(errno));
++		return -1;
++	}
++
++	for (int attempt = 0; attempt < 50 && !shutdown_flag; attempt++) {
++		struct pollfd port = {fd, POLLOUT, 0};
++		int result = poll(&port, 1, 100);
++		if (result == -1 && errno == EINTR) {
++			continue;
++		}
++		if (result < 0 || (port.revents & (POLLERR | POLLNVAL))) {
++			break;
++		}
++		if ((port.revents & (POLLOUT | POLLHUP)) == POLLOUT) {
++			return fd;
++		}
++		if (port.revents & POLLHUP) {
++			const struct timespec delay = {0, 100000000};
++			nanosleep(&delay, NULL);
++		}
++	}
++	wp_error("HiSH Wayland did not connect to virtio port '%s'", device);
++	checked_close(fd);
++	return -1;
++}
++
+@@ -201 +237 @@
+-		int server_link, const struct main_config *config)
++		int server_link, int virtio_fd, const struct main_config *config)
+@@ -203,9 +239,12 @@
+-	int chanfd = -1, chanfolder_fd = -1;
+-	if (connect_to_socket(cwd_fd, socket_path, &chanfolder_fd, &chanfd) ==
+-			-1) {
+-		goto fail_srv;
+-	}
+-	/* Only unlink the socket if it actually was a socket */
+-	if (unlink_at_end) {
+-		unlink_at_folder(cwd_fd, chanfolder_fd, socket_path.folder,
+-				socket_path.filename->sun_path);
++	int chanfd = virtio_fd;
++	if (chanfd == -1) {
++		int chanfolder_fd = -1;
++		if (connect_to_socket(cwd_fd, socket_path, &chanfolder_fd,
++					&chanfd) == -1) {
++			goto fail_srv;
++		}
++		if (unlink_at_end) {
++			unlink_at_folder(cwd_fd, chanfolder_fd, socket_path.folder,
++					socket_path.filename->sun_path);
++		}
++		checked_close(chanfolder_fd);
+@@ -213 +251,0 @@
+-	checked_close(chanfolder_fd);
+@@ -606,0 +645,7 @@
++	const bool virtio = strcmp(socket_path.folder, "/dev/virtio-ports") == 0;
++	if (virtio && (!oneshot || control_path || unlink_at_end)) {
++		wp_error("The HiSH virtio port requires one-shot server mode");
++		return EXIT_FAILURE;
++	}
++	int virtio_fd = -1;
++
+@@ -624 +669 @@
+-		if (set_cloexec(server_link) == -11) {
++		if (set_cloexec(server_link) == -1) {
+@@ -628,0 +674,9 @@
++
++		if (virtio) {
++			virtio_fd = connect_to_virtio(socket_path);
++			if (virtio_fd == -1) {
++				checked_close(wayland_socket);
++				checked_close(server_link);
++				return EXIT_FAILURE;
++			}
++		}
+@@ -728,0 +783,3 @@
++				if (virtio_fd != -1) {
++					checked_close(virtio_fd);
++				}
+@@ -765 +822 @@
+-				unlink_at_end, server_link, config);
++				unlink_at_end, server_link, virtio_fd, config);
