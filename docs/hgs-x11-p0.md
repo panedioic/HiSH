@@ -1,5 +1,7 @@
 # HiSH X11 P0
 
+后续的双协议共存、窗口缩放和来宾文件导入规划见 [实施路线与 Agent 交接](hish-desktop-integration-roadmap.md)。本文保留已有接入与验证记录。
+
 P0 在 ARM64 HarmonyOS 平板上使用 HGS 的 X11 子窗口。来宾通过 QEMU 用户态网络的
 `10.0.2.2` 访问 HiSH 的回环监听。HiSH 将每条连接转发到本次 HGS 会话的 abstract
 Unix socket。Xwayland 校验来宾的 Xauthority cookie。

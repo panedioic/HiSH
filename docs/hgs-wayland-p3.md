@@ -1,5 +1,7 @@
 # HiSH Wayland P3 可行性验证
 
+后续的双协议共存、窗口缩放和来宾文件导入规划见 [实施路线与 Agent 交接](hish-desktop-integration-roadmap.md)。本文保留已有接入与验证记录。
+
 用 Waypipe 0.9.2 的源码做了 ARM64 OHOS SDK 交叉编译验证。宿主和来宾探针使用同一版本。
 最小构建关闭了 DMA-BUF、视频、压缩和
 security-context 功能，产出了可执行文件和只依赖 OHOS `libc.so` 的共享库。
