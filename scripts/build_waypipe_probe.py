@@ -22,6 +22,8 @@ def main() -> None:
         patches = Path(__file__).resolve().parent / "patches"
         patch = patches / "waypipe-0.9.2-virtio-serial.patch"
         subprocess.run(["patch", "-p1", "-i", str(patch)], cwd=source, check=True)
+        patch = patches / "waypipe-0.9.2-ohos-shm.patch"
+        subprocess.run(["patch", "-p1", "-i", str(patch)], cwd=source, check=True)
         with (source / "src/meson.build").open("a") as meson:
             meson.write("""
 shared_library(

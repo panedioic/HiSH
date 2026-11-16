@@ -1,0 +1,53 @@
+--- a/src/platform.c
++++ b/src/platform.c
+@@ -31,0 +32 @@
++#include <errno.h>
+@@ -51,7 +51,0 @@
+-/* memfd_create was introduced in glibc 2.27 */
+-#if !defined(__GLIBC__) || (__GLIBC__ >= 2 && __GLIBC_MINOR__ >= 27)
+-#define HAS_MEMFD 1
+-#endif
+-#endif
+-
+-#if defined(__linux__)
+@@ -63,14 +57,5 @@
+-	int new_fileno;
+-#ifdef HAS_MEMFD
+-	new_fileno = memfd_create("waypipe", 0);
+-#elif defined(SHM_ANON)
+-	new_fileno = shm_open(SHM_ANON, O_RDWR, 0600);
+-#else
+-	// Fallback code. Should not be used from multiple threads
+-	static int counter = 0;
+-	int pid = getpid();
+-	counter++;
+-	char tmp_name[64];
+-	sprintf(tmp_name, "/waypipe%d-data_%d", pid, counter);
+-	new_fileno = shm_open(tmp_name, O_EXCL | O_RDWR | O_CREAT, 0644);
+-	if (new_fileno == -1) {
++	/* OHOS can map memfd buffers but can deny their metadata queries.
++	 * The HiSH host sets XDG_RUNTIME_DIR to an application-private directory. */
++	const char *runtime = getenv("XDG_RUNTIME_DIR");
++	if (!runtime || runtime[0] != '/') {
++		errno = EINVAL;
+@@ -79,3 +64,17 @@
+-	(void)shm_unlink(tmp_name);
+-#endif
+-	return new_fileno;
++
++	char *path;
++	if (asprintf(&path, "%s/waypipe-shm-XXXXXX", runtime) < 0) {
++		return -1;
++	}
++	int fd = mkostemp(path, O_CLOEXEC);
++	if (fd < 0 || unlink(path) < 0) {
++		int saved = errno;
++		if (fd >= 0) {
++			close(fd);
++		}
++		free(path);
++		errno = saved;
++		return -1;
++	}
++	free(path);
++	return fd;
