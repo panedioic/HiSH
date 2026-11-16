@@ -1,0 +1,43 @@
+--- a/src/client.c
++++ b/src/client.c
+@@ -368,4 +368,30 @@
+-		if (read(chanclient, &conn_id.header, sizeof(conn_id.header)) !=
+-				sizeof(conn_id.header)) {
+-			wp_error("Failed to get connection id header");
+-			goto fail_cc;
++		/* QEMU may close the chardev connection before the guest
++		 * opens the virtio port. Wait for a complete guest token. */
++		size_t received = 0;
++		while (received < sizeof(conn_id) && !shutdown_flag) {
++			struct pollfd handshake = {chanclient, POLLIN, 0};
++			int ready = poll(&handshake, 1, -1);
++			if (ready < 0 && errno == EINTR) {
++				continue;
++			}
++			if (ready <= 0) {
++				break;
++			}
++			ssize_t count = read(chanclient, (char *)&conn_id + received,
++					sizeof(conn_id) - received);
++			if (count < 0 && errno == EINTR && !shutdown_flag) {
++				continue;
++			}
++			if (count < 0 && (errno == EAGAIN || errno == EWOULDBLOCK) &&
++					!(handshake.revents & (POLLHUP | POLLERR))) {
++				continue;
++			}
++			if (count <= 0) {
++				break;
++			}
++			received += (size_t)count;
++		}
++		if (received != sizeof(conn_id)) {
++			checked_close(chanclient);
++			chanclient = -1;
++			continue;
+@@ -378,5 +403,0 @@
+-			goto fail_cc;
+-		}
+-		if (read(chanclient, &conn_id.key, sizeof(conn_id.key)) !=
+-				sizeof(conn_id.key)) {
+-			wp_error("Failed to get connection id key");

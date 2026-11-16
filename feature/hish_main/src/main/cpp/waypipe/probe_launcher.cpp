@@ -38,17 +38,15 @@ bool CheckSharedBuffer(int socket, char& kind)
     return matches;
 }
 
-}
-
-bool Start(const std::string& directory)
+int Spawn(const char* entry, const std::string& directory, int32_t& pid)
 {
-    if (directory.empty() || directory.front() != '/') return false;
+    if (directory.empty() || directory.front() != '/') return -1;
     int sockets[2];
-    if (socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets) != 0) return false;
+    if (socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets) != 0) return -1;
     Fd parent(sockets[0]);
     Fd child(sockets[1]);
     struct stat identity{};
-    if (fstat(child.Get(), &identity) != 0) return false;
+    if (fstat(child.Get(), &identity) != 0) return -1;
 
     char name[] = "probe";
     NativeChildProcess_Fd node{};
@@ -60,8 +58,7 @@ bool Start(const std::string& directory)
     args.fdList.head = &node;
     NativeChildProcess_Options options{};
     options.isolationMode = NCP_ISOLATION_MODE_NORMAL;
-    int32_t pid = -1;
-    const auto status = OH_Ability_StartNativeChildProcess("libhish_waypipe_probe.so:Main", args, options, &pid);
+    const auto status = OH_Ability_StartNativeChildProcess(entry, args, options, &pid);
 
     // Some NCP implementations consume the passed descriptor.
     struct stat current{};
@@ -69,10 +66,21 @@ bool Start(const std::string& directory)
         current.st_ino != identity.st_ino) child.Release();
     if (status != 0) {
         OH_LOG_Print(LOG_APP, LOG_ERROR, 0, tag, "Waypipe child launch failed: %{public}d", static_cast<int>(status));
-        return false;
+        return -1;
     }
 
-    const int fd = parent.Release();
+    return parent.Release();
+}
+
+Fd proxy;
+
+}
+
+bool Start(const std::string& directory)
+{
+    int32_t pid = -1;
+    const int fd = Spawn("libhish_waypipe_probe.so:Main", directory, pid);
+    if (fd < 0) return false;
     try {
         std::thread([fd, pid] {
             const Fd channel(fd);
@@ -91,6 +99,22 @@ bool Start(const std::string& directory)
         return false;
     }
     return true;
+}
+
+bool StartProxy(const std::string& directory)
+{
+    StopProxy();
+    int32_t pid = -1;
+    const int fd = Spawn("libhish_waypipe_probe.so:Proxy", directory, pid);
+    if (fd < 0) return false;
+    proxy.Reset(fd);
+    return true;
+}
+
+void StopProxy()
+{
+    if (proxy.Get() >= 0) shutdown(proxy.Get(), SHUT_RDWR);
+    proxy.Reset();
 }
 
 }

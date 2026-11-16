@@ -30,3 +30,5 @@ export const vncResizeSurface: (surfaceId: bigint, width: number, height: number
 export const vncDestroySurface: () => number;
 
 export const runWaypipeProbe: (directory: string) => boolean;
+export const startWaypipeProxy: (directory: string) => boolean;
+export const stopWaypipeProxy: () => void;

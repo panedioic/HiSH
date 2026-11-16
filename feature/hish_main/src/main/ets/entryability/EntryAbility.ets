@@ -7,6 +7,7 @@ import fs from '@ohos.file.fs';
 import { deviceInfo } from '@kit.BasicServicesKit';
 import napi from 'libhish_main.so';
 import appOption, { CursorShape, UserFont } from '../model/appOption'
+import { WaypipeSession } from '../service/WaypipeSession';
 import { X11Session } from '../service/X11Session';
 import { HgsService } from 'hgs';
 import { startVm } from '../lib/startVm';
@@ -44,6 +45,8 @@ function getFreeVncPort(min: number, max: number): number | undefined {
 }
 
 export default class EntryAbility extends UIAbility {
+  private waypipeEnabled: boolean = false;
+  private waypipe: WaypipeSession = new WaypipeSession();
   private x11TopLevel: boolean = false;
   private x11SmokeEnabled: boolean = false;
   private x11: X11Session = new X11Session();
@@ -52,6 +55,8 @@ export default class EntryAbility extends UIAbility {
     if (want.parameters?.['hish.waypipe.probe'] === '1' && !napi.runWaypipeProbe(this.context.cacheDir)) {
       hilog.error(DOMAIN, 'HiSH-Waypipe', 'Waypipe probe unavailable or child launch failed');
     }
+    this.waypipeEnabled = this.context.abilityInfo.moduleName === 'tablet' &&
+      want.parameters?.['hish.wayland'] === '1';
     this.x11SmokeEnabled = want.parameters?.['hish.x11'] === '1';
     this.x11TopLevel = this.context.abilityInfo.moduleName === 'tablet' &&
       want.parameters?.['hish.x11.toplevel'] === '1';
@@ -102,8 +107,12 @@ export default class EntryAbility extends UIAbility {
       if (!this.stageActive) return;
       AppStorage.setOrCreate(appOption.vmShutdownRequested, false);
       napi.onShutdown(() => { void this.onVmShutdown(); });
-      const result = this.startDefaultEmulator()
-      if (result.vmStarted && (this.x11SmokeEnabled || this.x11TopLevel || AppStorage.get<boolean>(appOption.x11Enabled))) {
+      const waypipeSocket = this.waypipeEnabled ? await this.waypipe.start(this.context, windowStage) : '';
+      if (!this.stageActive) return;
+      const result = this.startDefaultEmulator(waypipeSocket)
+      if (!result.vmStarted && waypipeSocket) void this.waypipe.stop();
+      if (result.vmStarted && !waypipeSocket &&
+        (this.x11SmokeEnabled || this.x11TopLevel || AppStorage.get<boolean>(appOption.x11Enabled))) {
         this.x11.start(this.context, windowStage, this.x11TopLevel);
       }
 
@@ -130,7 +139,7 @@ export default class EntryAbility extends UIAbility {
     AppStorage.setOrCreate(appOption.sharedGuest, sharedGuest)
   }
 
-  private startDefaultEmulator(): StartResult {
+  private startDefaultEmulator(waypipeSocket: string): StartResult {
 
     const appTempDir = AppStorage.get(appOption.appTempDir)!!
 
@@ -183,6 +192,7 @@ export default class EntryAbility extends UIAbility {
       init,
       qmpUnixSocket,
       qgaUnixSocket,
+      waypipeSocket,
       vncEnabled,
       vncPortMode,
       vncPort
@@ -368,13 +378,14 @@ export default class EntryAbility extends UIAbility {
     AppStorage.setOrCreate(appOption.vmShutdownRequested, false);
     AppStorage.set(appOption.currentRunningEmulator, undefined);
     AppStorage.setOrCreate(appOption.currentEmulatorStatus, 'SHUTDOWN');
-    await this.x11.stop();
+    await Promise.all([this.x11.stop(), this.waypipe.stop()]);
     if (!requested && this.stageActive) await this.context.terminateSelf();
   }
 
   onWindowStageDestroy(): void {
     this.stageActive = false;
     void this.x11.stop();
+    void this.waypipe.stop();
     // Main window is destroyed, release UI related resources
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onWindowStageDestroy');
   }

@@ -13,10 +13,11 @@ inline constexpr char sample[] = "waypipe-shm";
 class Fd {
 public:
     explicit Fd(int fd = -1) : fd_(fd) {}
-    ~Fd() { if (fd_ >= 0) close(fd_); }
+    ~Fd() { Reset(); }
     Fd(const Fd&) = delete;
     Fd& operator=(const Fd&) = delete;
     int Get() const { return fd_; }
+    void Reset(int fd = -1) { if (fd_ >= 0) close(fd_); fd_ = fd; }
     int Release() { const int fd = fd_; fd_ = -1; return fd; }
 private:
     int fd_;
@@ -58,5 +59,7 @@ inline int ReceiveBuffer(int socket, char& marker)
 }
 
 bool Start(const std::string& directory);
+bool StartProxy(const std::string& directory);
+void StopProxy();
 
 }

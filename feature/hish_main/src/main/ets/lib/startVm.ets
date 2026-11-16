@@ -16,6 +16,7 @@ interface VmOptions {
   serialUnixSocket: string
   qmpUnixSocket: string
   qgaUnixSocket: string
+  waypipeSocket?: string
   sharedFolderReadonly: boolean
   init: string,
   vncEnabled: boolean
@@ -69,6 +70,14 @@ function startVm(options: VmOptions): boolean {
     '-device', 'virtserialport,chardev=qga0,bus=virtio-serial0.0,name=org.qemu.guest_agent.0'
   ]
 
+  const waypipeDirectory = options.waypipeSocket?.substring(0, options.waypipeSocket.lastIndexOf('/'))
+  const waypipe = waypipeDirectory ? [
+    '-chardev', 'socket,path=' + options.waypipeSocket + ',server=off,reconnect-ms=100,id=hgswp',
+    '-device', 'virtserialport,chardev=hgswp,bus=virtio-serial0.0,name=org.hish.waypipe.0',
+    '-fsdev', 'local,security_model=none,id=hgswpfs,readonly,path=' + waypipeDirectory + '/guest',
+    '-device', 'virtio-9p-pci,fsdev=hgswpfs,mount_tag=hishwaypipe'
+  ] : []
+
   const sharedUserFolder = deviceInfo.deviceType !== '2in1' ? [] :
     ["-fsdev", "local,security_model=mapped-file,id=fsdev1,path=/storage/Users/currentUser", "-device",
       "virtio-9p-pci,id=fs1,fsdev=fsdev1,mount_tag=usershare"]
@@ -92,6 +101,7 @@ function startVm(options: VmOptions): boolean {
     ...kernelParam,
     ...monitor,
     ...qga,
+    ...waypipe,
     ...vnc,
     ...sharedUserFolder
   ]
