@@ -56,27 +56,20 @@ hdc shell hilog -x -T HiSH-Waypipe
 
 QEMU 将专用 virtio-serial 端口连接到应用私有 Unix socket。实验只启动一个 Wayland
 应用连接。宿主可以在收齐握手前接受新的串口连接，避免来宾启动阶段的断连耗尽这次会话。
-来宾通过只读 9p 挂载获取匹配版本，复制到 `/run` 后启动。以下命令需在来宾中以 root 执行，
-并预先安装 `socat` 和一个支持 Wayland 的 GTK 应用。
+来宾启动后，QEMU Guest Agent 会短暂挂载只读 9p，将匹配版本和启动脚本安装到 `/run`。
+日志出现 `Guest launcher ready` 后，在来宾中以 root 运行：
 
 ```sh
-mkdir -p /run/hishwaypipe /run/hishwaypipe-app
-chmod 700 /run/hishwaypipe-app
-mount -t 9p -o trans=virtio,version=9p2000.L,ro hishwaypipe /run/hishwaypipe
-cp /run/hishwaypipe/waypipe /run/hish-waypipe
-chmod 700 /run/hish-waypipe
-socat UNIX-LISTEN:/run/hish-waypipe.sock,unlink-early \
-  OPEN:/dev/virtio-ports/org.hish.waypipe.0 &
-unset DISPLAY WAYLAND_DISPLAY WAYLAND_SOCKET
-XDG_RUNTIME_DIR=/run/hishwaypipe-app GDK_BACKEND=wayland \
-  /run/hish-waypipe --no-gpu --oneshot --compress=none \
-  --socket /run/hish-waypipe.sock server gtk3-demo
+apk add socat                  # 如果来宾还没有 socat
+/run/hish-wayland status
+/run/hish-wayland run gtk3-demo  # 也可以传入其他已安装的 Wayland 程序及其参数
 ```
 
-应用退出后，重启 HiSH 实验会话可重新验证。Waypipe 的常驻 client 路径会为连接调用
+应用退出后，重启 HiSH 实验会话可运行下一个应用。Waypipe 的常驻 client 路径会为连接调用
 `fork()`，需单独验证其在 OHOS 沙箱中的行为。
 
 ARM64 平板真机上，Alpine 来宾的 GTK 3 应用已通过 `wl_shm` 在独立 HGS 窗口显示。
+启动命令能在来宾开机后自动安装。传入不存在的应用会报错，并保留可用连接。
 点击按钮可改变标签，物理键盘事件可在输入框产生文本。关闭窗口后，HGS 移除窗口，
 Waypipe client 以状态 0 退出。宿主对部分文件描述符仍报告 `fstat` 权限错误，
 需继续验证其他应用和共享缓冲区场景。

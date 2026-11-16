@@ -4,8 +4,49 @@ import { fileIo as fs } from '@kit.CoreFileKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { HgsService, HgsWindowHostService } from 'hgs';
 import napi from 'libhish_main.so';
+import QemuAgentManager from '../lib/QemuAgentManager';
 
 const TAG = 'HiSH-Waypipe';
+const AGENT_OWNER = 'waypipe';
+
+const PUBLISH_LAUNCHER = [
+  'set -eu',
+  'umask 077',
+  'path=/run/hish-wayland',
+  'case "$(readlink "$path" 2>/dev/null || true)" in',
+  '  /run/hish-wayland.*/launcher) if [ -x "$path" ]; then echo ready; exit 0; fi ;;',
+  'esac',
+  'test -c /dev/virtio-ports/org.hish.waypipe.0',
+  'dir=$(mktemp -d /run/hish-wayland.XXXXXX)',
+  'mounted=0',
+  'cleanup() {',
+  '  if [ "$mounted" -eq 1 ]; then umount "$dir/share" || return; fi',
+  '  rm -rf "$dir"',
+  '}',
+  'trap cleanup EXIT',
+  'mkdir "$dir/share"',
+  'mount -t 9p -o trans=virtio,version=9p2000.L,ro hishwaypipe "$dir/share"',
+  'mounted=1',
+  'cp "$dir/share/waypipe" "$dir/waypipe"',
+  'cp "$dir/share/launcher" "$dir/launcher"',
+  'chmod 700 "$dir/waypipe" "$dir/launcher"',
+  'umount "$dir/share"',
+  'mounted=0',
+  'rmdir "$dir/share"',
+  'ln -sT "$dir/launcher" "$path"',
+  'trap - EXIT',
+  'echo ready',
+].join('\n');
+
+function copyRawFile(context: common.UIAbilityContext, resource: string, path: string): void {
+  const data = context.resourceManager.getRawFileContentSync(resource);
+  const fd = fs.openSync(path, fs.OpenMode.CREATE | fs.OpenMode.WRITE_ONLY);
+  try {
+    if (fs.writeSync(fd.fd, data.buffer) !== data.byteLength) throw new Error('Incomplete copy: ' + resource);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
 
 export class WaypipeSession {
   private directory: string = '';
@@ -27,13 +68,8 @@ export class WaypipeSession {
       this.directory = fs.mkdtempSync(context.cacheDir + '/wp-XXXXXX');
       const guest = this.directory + '/guest';
       fs.mkdirSync(guest);
-      const binary = context.resourceManager.getRawFileContentSync('hish-waypipe-linux-arm64');
-      const fd = fs.openSync(guest + '/waypipe', fs.OpenMode.CREATE | fs.OpenMode.WRITE_ONLY);
-      try {
-        if (fs.writeSync(fd.fd, binary.buffer) !== binary.byteLength) throw new Error('Waypipe guest copy incomplete');
-      } finally {
-        fs.closeSync(fd);
-      }
+      copyRawFile(context, 'hish-waypipe-linux-arm64', guest + '/waypipe');
+      copyRawFile(context, 'hish-wayland-run.sh', guest + '/launcher');
       const socketPath = this.directory + '/p';
       HgsWindowHostService.init(context, { abilityName: 'WaylandWindowAbility', pageUrl: 'pages/HgsWindowPage' });
       const session = await HgsWindowHostService.startService(stage, {
@@ -63,6 +99,30 @@ export class WaypipeSession {
       hilog.error(0, TAG, 'Waypipe startup failed: %{public}s', String(error));
       await this.release();
       return '';
+    }
+  }
+
+  async configureGuest(): Promise<void> {
+    try {
+      for (let attempt = 0; !this.cancelled && attempt < 30; ++attempt) {
+        const agent = await QemuAgentManager.acquire(AGENT_OWNER);
+        if (agent) {
+          try {
+            if (this.cancelled) return;
+            const result = await agent.execAndGetOutput('/bin/sh', ['-c', PUBLISH_LAUNCHER]);
+            if (result?.trim() === 'ready') {
+              hilog.info(0, TAG, 'Guest launcher ready: /run/hish-wayland run PROGRAM');
+              return;
+            }
+          } finally {
+            await QemuAgentManager.release(AGENT_OWNER);
+          }
+        }
+        if (!this.cancelled) await new Promise<void>((resolve) => setTimeout(resolve, 500));
+      }
+      if (!this.cancelled) throw new Error('QEMU Guest Agent did not publish /run/hish-wayland');
+    } catch (error) {
+      hilog.error(0, TAG, 'Wayland guest startup failed: %{public}s', String(error));
     }
   }
 

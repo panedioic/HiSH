@@ -110,8 +110,10 @@ export default class EntryAbility extends UIAbility {
       const waypipeSocket = this.waypipeEnabled ? await this.waypipe.start(this.context, windowStage) : '';
       if (!this.stageActive) return;
       const result = this.startDefaultEmulator(waypipeSocket)
-      if (!result.vmStarted && waypipeSocket) void this.waypipe.stop();
-      if (result.vmStarted && !waypipeSocket &&
+      if (waypipeSocket) {
+        if (result.vmStarted) void this.waypipe.configureGuest();
+        else void this.waypipe.stop();
+      } else if (result.vmStarted &&
         (this.x11SmokeEnabled || this.x11TopLevel || AppStorage.get<boolean>(appOption.x11Enabled))) {
         this.x11.start(this.context, windowStage, this.x11TopLevel);
       }
